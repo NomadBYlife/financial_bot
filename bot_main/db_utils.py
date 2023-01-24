@@ -38,22 +38,40 @@ async def edit_expenses(state):
 
 
 async def get_general_data(user_id: dict):
-    data = cur.execute("SELECT * FROM expenses WHERE user == '{}' ORDER BY date_main".format(user_id)).fetchall()
+    data = {}
+    data['main'] = cur.execute(
+        "SELECT * FROM expenses WHERE user == '{}' ORDER BY date_main".format(user_id)).fetchall()
+    data['amount_sum'] = \
+        cur.execute(
+            "SELECT sum(amount) FROM expenses WHERE user == '{}' ORDER BY date_main".format(user_id)).fetchall()[0][
+            0]
+    # print(data_q)
+
     return data
 
 
 async def get_data_current_month(user_id: dict):
-    data = cur.execute(
+    data = {}
+    data['main'] = cur.execute(
         f"SELECT * FROM expenses WHERE user == '{user_id}' and date_main BETWEEN date('now','start of month') and date('now') ORDER BY date_main").fetchall()
+    data['amount_sum'] = cur.execute(
+        f"SELECT sum(amount) FROM expenses WHERE user == '{user_id}' and date_main BETWEEN date('now','start of month') and date('now') ORDER BY date_main").fetchall()[
+        0][0]
     return data
 
-async def get_data_choosen_month(user_id: dict, data: dict):
-    if len(data['month']) < 2:
-        date_start = f"20{data['year']}-0{data['month']}-01"
-        date_finish = f"20{data['year']}-0{data['month']}-31"
+
+async def get_data_choosen_month(user_id: dict, date: dict):
+    data = {}
+    if len(date['month']) < 2:
+        date_start = f"20{date['year']}-0{date['month']}-01"
+        date_finish = f"20{date['year']}-0{date['month']}-31"
     else:
-        date_start = f"20{data['year']}-{data['month']}-01"
-        date_finish = f"20{data['year']}-{data['month']}-31"
-    data = cur.execute(
-        """SELECT * FROM expenses WHERE user == '{}' and date_main BETWEEN date('{}') and date('{}')""".format(user_id, date_start, date_finish)).fetchall()
+        date_start = f"20{date['year']}-{date['month']}-01"
+        date_finish = f"20{date['year']}-{date['month']}-31"
+    data['main'] = cur.execute(
+        """SELECT * FROM expenses WHERE user == '{}' and date_main BETWEEN date('{}') and date('{}')""".
+            format(user_id, date_start, date_finish)).fetchall()
+    data['amount_sum'] = cur.execute(
+        """SELECT sum(amount) FROM expenses WHERE user == '{}' and date_main BETWEEN date('{}') and date('{}')""".
+            format(user_id, date_start, date_finish)).fetchall()[0][0]
     return data

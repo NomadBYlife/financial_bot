@@ -155,8 +155,9 @@ async def months_cb_handler(callback_query: types.CallbackQuery, state: FSMConte
     await state.finish()
     if len(db_data) == 0:
         reply = 'Данных пока нету'
-    for i in db_data:
-        reply += f"{button[i[0]]}, суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    for i in db_data['main']:
+        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    reply += f"Общая сумма расходов: {db_data['amount_sum']}"
     await bot.send_message(chat_id=callback_query.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=menu_keyboard())
 
@@ -212,8 +213,9 @@ async def get_msg_handler(message: types.Message):
 async def get_general_month_data_msg_handler(message: types.Message):
     data = await get_general_data(message.from_user.id)
     reply = ''
-    for i in data:
-        reply += f"{button[i[0]]}, суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    for i in data['main']:
+        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
 
@@ -222,8 +224,9 @@ async def get_general_month_data_msg_handler(message: types.Message):
 async def get_current_month_data_msg_handler(message: types.Message):
     data = await get_data_current_month(message.from_user.id)
     reply = ''
-    for i in data:
-        reply += f"{button[i[0]]}, суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    for i in data['main']:
+        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
 

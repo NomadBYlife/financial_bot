@@ -98,7 +98,7 @@ def income_expense_inline_keyboard2() -> InlineKeyboardMarkup:
 
 def get_data_keyboard() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(resize_keyboard=True,one_time_keyboard=True)
-    kb.add(KeyboardButton('За все время'), KeyboardButton('За текущий месяц'),KeyboardButton('Выбрать мeсяц'))
+    kb.add(KeyboardButton('За все время'), KeyboardButton('За текущий месяц'),KeyboardButton('Выбрать период'))
     kb.add(KeyboardButton(text='⬅️ Назад'))
     return kb
 
@@ -115,7 +115,16 @@ def months_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=months['mnth_9'], callback_data='mnth_9'),
             InlineKeyboardButton(text=months['mnth_10'], callback_data='mnth_10'),
             InlineKeyboardButton(text=months['mnth_11'], callback_data='mnth_11'),
-            InlineKeyboardButton(text=months['mnth_12'], callback_data='mnth_12'))
+            InlineKeyboardButton(text=months['mnth_12'], callback_data='mnth_12'),
+            InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
+    return ikb
+
+def year_inline_keyboard() -> InlineKeyboardMarkup:
+    ikb = InlineKeyboardMarkup(row_width=3)
+    ikb.add(InlineKeyboardButton(text='2022', callback_data='year_2022'),
+            InlineKeyboardButton(text='2023', callback_data='year_2023'),
+            InlineKeyboardButton(text='2024', callback_data='year_2024'),
+            InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
     return ikb
 
 

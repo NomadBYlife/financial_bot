@@ -38,16 +38,22 @@ async def edit_expenses(state):
 
 
 async def get_general_data(user_id: dict):
-    data = cur.execute("SELECT * FROM expenses WHERE user == '{}'".format(user_id)).fetchall()
+    data = cur.execute("SELECT * FROM expenses WHERE user == '{}' ORDER BY date_main".format(user_id)).fetchall()
     return data
 
 
 async def get_data_current_month(user_id: dict):
     data = cur.execute(
-        f"SELECT * FROM expenses WHERE user == '{user_id}' and date_main BETWEEN date('now','start of month') and date('now')").fetchall()
+        f"SELECT * FROM expenses WHERE user == '{user_id}' and date_main BETWEEN date('now','start of month') and date('now') ORDER BY date_main").fetchall()
     return data
 
-async def get_data_choosen_month(user_id: dict, month):
+async def get_data_choosen_month(user_id: dict, data: dict):
+    if len(data['month']) < 2:
+        date_start = f"20{data['year']}-0{data['month']}-01"
+        date_finish = f"20{data['year']}-0{data['month']}-31"
+    else:
+        date_start = f"20{data['year']}-{data['month']}-01"
+        date_finish = f"20{data['year']}-{data['month']}-31"
     data = cur.execute(
-        f"SELECT * FROM expenses WHERE user == '{user_id}' and date_main BETWEEN date('now','start of {month}') and date('now','end of {month}')").fetchall()
+        """SELECT * FROM expenses WHERE user == '{}' and date_main BETWEEN date('{}') and date('{}')""".format(user_id, date_start, date_finish)).fetchall()
     return data

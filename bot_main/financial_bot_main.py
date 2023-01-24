@@ -1,5 +1,3 @@
-import datetime
-
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -8,12 +6,13 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import ReplyKeyboardRemove
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher.handler import CancelHandler
-from telebot.asyncio_handler_backends import CancelUpdate
 
 import config
-from bot_main.db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month
+from bot_main.db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month, \
+    get_data_choosen_month
 from bot_main.keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
-    income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard
+    income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard, \
+    year_inline_keyboard
 
 storage = MemoryStorage()
 bot = Bot(config.TOKEN_API)
@@ -44,30 +43,25 @@ class ProductsStatesGroup(StatesGroup):
     description = State()
 
 
+class DateStatesGroup(StatesGroup):
+    year = State()
+    month = State()
+
+
 class AntiFloodMiddleware(BaseMiddleware):
     def __init__(self, limit):
         super().__init__()
         self.last_time = {}
         self.limit = limit
-        # self.update_types = ['message']
 
     async def on_pre_process_message(self, message, data):
-        # print(self.last_time)
-        # print(self.limit)
-        # print(message.text)
         if message.from_user.id not in self.last_time:
-            # print('if')
             self.last_time[message.from_user.id] = {}
             self.last_time[message.from_user.id]['date'] = message.date
             self.last_time[message.from_user.id]['text'] = message.text
             return
-        # print(self.last_time, '60')
-        # print(self.last_time[message.from_user.id], '61')
-        # print((message.date - self.last_time[message.from_user.id]).total_seconds(), 'minus')
-        # print(int((message.date - self.last_time[message.from_user.id]).total_seconds()), 'minus')
         if int((message.date - self.last_time[message.from_user.id]['date']).total_seconds()) < self.limit and \
                 self.last_time[message.from_user.id]['text'] == message.text:
-            # print('if2')
             await bot.send_message(chat_id=message.from_user.id, text='Слишком много запросов')
             raise CancelHandler()
         self.last_time[message.from_user.id]['date'] = message.date
@@ -80,7 +74,6 @@ async def on_startup(_):
 
 @dp.message_handler(commands=['start'])
 async def cmd_start(message: types.Message):
-    print('start')
     await create_user(user_id=message.from_user.id, name=message.from_user.first_name,
                       nick_name=message.from_user.username)
     await bot.send_message(chat_id=message.from_user.id, text='I am glad to welcome you! I am a spending control bot.',
@@ -100,7 +93,6 @@ async def cmd_description(message: types.Message):
     await message.delete()
 
 
-# @dp.message_handler(ReplyFilterBot())
 @dp.message_handler(Text(equals='Начать использовать'))
 async def star_using_handler(message: types.Message):
     await bot.send_message(chat_id=message.from_user.id,
@@ -144,12 +136,29 @@ async def item_cb_handler(callback_query: types.CallbackQuery, state: FSMContext
     await callback_query.message.answer('Введите сумму:')
     await ProductsStatesGroup.amount.set()
 
-@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('mnth_'))
+
+@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('year'), state=DateStatesGroup.year)
+async def date_cb_handler(callback_query: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        data['year'] = callback_query.data[7:]
+    await callback_query.message.answer(text='Выберите период', parse_mode='HTML',
+                                        reply_markup=months_inline_keyboard())
+    await DateStatesGroup.next()
+
+
+@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('mnth_'), state=DateStatesGroup.month)
 async def months_cb_handler(callback_query: types.CallbackQuery, state: FSMContext):
-    # async with state.proxy() as data:
-    #     data['item'] = callback_query.data
-    await callback_query.message.answer(f'месяц {callback_query.data}')
-    # await ProductsStatesGroup.amount.set()
+    async with state.proxy() as data:
+        data['month'] = callback_query.data[5:]
+    db_data = await get_data_choosen_month(callback_query.from_user.id, data)
+    reply = ''
+    await state.finish()
+    if len(db_data) == 0:
+        reply = 'Данных пока нету'
+    for i in db_data:
+        reply += f"{button[i[0]]}, суммa {i[1]}, дата {i[2]} {i[3]}\n"
+    await bot.send_message(chat_id=callback_query.from_user.id, text=reply, parse_mode='HTML',
+                           reply_markup=menu_keyboard())
 
 
 @dp.message_handler(ReplyFilterBot(), state=ProductsStatesGroup.amount)
@@ -200,7 +209,7 @@ async def get_msg_handler(message: types.Message):
 
 
 @dp.message_handler(Text(equals='За все время'))
-async def get_general_data_from_db(message: types.Message):
+async def get_general_month_data_msg_handler(message: types.Message):
     data = await get_general_data(message.from_user.id)
     reply = ''
     for i in data:
@@ -210,7 +219,7 @@ async def get_general_data_from_db(message: types.Message):
 
 
 @dp.message_handler(Text(equals='За текущий месяц'))
-async def get_current_month_data_from_db(message: types.Message):
+async def get_current_month_data_msg_handler(message: types.Message):
     data = await get_data_current_month(message.from_user.id)
     reply = ''
     for i in data:
@@ -219,15 +228,12 @@ async def get_current_month_data_from_db(message: types.Message):
                            reply_markup=get_data_keyboard())
 
 
-@dp.message_handler(Text(equals='Выбрать мeсяц'))
-async def choose_months_handler(message: types.Message):
-    data = await get_data_current_month(message.from_user.id)
-    reply = ''
-    # for i in data:
-    #     reply += f"{button[i[0]]}, суммa {i[1]}, дата {i[2]} {i[3]}\n"
-    await bot.send_message(chat_id=message.from_user.id, text='Выбрать мeсяц',reply_markup=months_inline_keyboard())
-    # await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
-    #                        reply_markup=get_data_keyboard())
+@dp.message_handler(Text(equals='Выбрать период'))
+async def choose_period_msg_handler(message: types.Message):
+    await bot.send_message(chat_id=message.from_user.id, text='Выберите год', parse_mode='HTML',
+                           reply_markup=year_inline_keyboard())
+    await DateStatesGroup.year.set()
+    await message.delete()
 
 
 if __name__ == '__main__':

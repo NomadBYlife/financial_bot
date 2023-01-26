@@ -53,7 +53,7 @@ def help_keyboard() -> ReplyKeyboardMarkup:
 def start_using_keyboard() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     kb.add(KeyboardButton('Начать использовать'))
-    # KeyboardButton('ЧаВо?'))
+    kb.add(KeyboardButton('Книга жалоб и предложений'))
     return kb
 
 
@@ -68,6 +68,7 @@ def income_expense_inline_keyboard() -> InlineKeyboardMarkup:
 def menu_keyboard() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     kb.add(KeyboardButton('Ввести данные'), KeyboardButton('Получить данные'))
+    kb.add(KeyboardButton('Главное меню'))
     return kb
 
 

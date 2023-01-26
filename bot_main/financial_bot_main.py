@@ -23,8 +23,8 @@ HELP = """
 /descriptions - descriptions about me
 """
 DESCRIPTION = """
-I am a free bot, created as an assistant to control expenses. 
-I hope that I will help you become more aware of your expenses.
+Я бесплатный бот, созданный как помощник для контроля расходов.
+Я надеюсь, что я помогу Вам стать более осведомленными о Ваших расходах.
 """
 
 
@@ -76,7 +76,7 @@ async def on_startup(_):
 async def cmd_start(message: types.Message):
     await create_user(user_id=message.from_user.id, name=message.from_user.first_name,
                       nick_name=message.from_user.username)
-    await bot.send_message(chat_id=message.from_user.id, text='I am glad to welcome you! I am a spending control bot.',
+    await bot.send_message(chat_id=message.from_user.id, text='Я рад приветствовать вас! Я бот контроля расходов.',
                            reply_markup=help_keyboard())
     await message.delete()
 

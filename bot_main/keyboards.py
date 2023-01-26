@@ -60,7 +60,7 @@ def start_using_keyboard() -> ReplyKeyboardMarkup:
 
 def income_expense_inline_keyboard() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(row_width=2)
-    ikb.add(InlineKeyboardButton(text='📈 Доход', callback_data='income'),
+    ikb.add(InlineKeyboardButton(text='📈 Доход(не работает)', callback_data='income'),
             InlineKeyboardButton(text='📉 Расход', callback_data='expense'),
             InlineKeyboardButton(text='⬅️ Назад', callback_data='back_from_ikb'),)
     return ikb

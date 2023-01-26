@@ -8,9 +8,9 @@ from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher.handler import CancelHandler
 
 import config
-from bot_main.db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month, \
+from db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month, \
     get_data_choosen_month
-from bot_main.keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
+from keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
     income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard, \
     year_inline_keyboard
 
@@ -23,8 +23,9 @@ HELP = """
 /descriptions - descriptions about me
 """
 DESCRIPTION = """
-Я бесплатный бот, созданный как помощник для контроля расходов.
-Я надеюсь, что я помогу Вам стать более осведомленными о Ваших расходах.
+Я бот, созданный как помощник для контроля расходов.
+Надеюсь, что я помогу Вам стать более осведомленными о Ваших расходах.
+Я буду модернизироваться со временем, дальше больше!
 """
 
 
@@ -76,8 +77,8 @@ async def on_startup(_):
 async def cmd_start(message: types.Message):
     await create_user(user_id=message.from_user.id, name=message.from_user.first_name,
                       nick_name=message.from_user.username)
-    await bot.send_message(chat_id=message.from_user.id, text='Я рад приветствовать вас! Я бот контроля расходов.',
-                           reply_markup=help_keyboard())
+    await bot.send_message(chat_id=message.from_user.id, text=DESCRIPTION,
+                           reply_markup=start_using_keyboard())
     await message.delete()
 
 

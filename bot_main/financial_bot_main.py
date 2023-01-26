@@ -27,6 +27,7 @@ DESCRIPTION = """
 Надеюсь, что я помогу Вам стать более осведомленными о Ваших расходах.
 Я буду модернизироваться со временем, дальше больше!
 """
+CREATOR = 448040700
 
 
 class ReplyFilterBot(BoundFilter):
@@ -49,6 +50,10 @@ class DateStatesGroup(StatesGroup):
     month = State()
 
 
+class ReviewStatesGroup(StatesGroup):
+    text = State()
+
+
 class AntiFloodMiddleware(BaseMiddleware):
     def __init__(self, limit):
         super().__init__()
@@ -63,7 +68,8 @@ class AntiFloodMiddleware(BaseMiddleware):
             return
         if int((message.date - self.last_time[message.from_user.id]['date']).total_seconds()) < self.limit and \
                 self.last_time[message.from_user.id]['text'] == message.text:
-            await bot.send_message(chat_id=message.from_user.id, text='Слишком много запросов')
+            await bot.send_message(chat_id=message.from_user.id, text='Слишком много запросов',
+                                   reply_markup=start_using_keyboard())
             raise CancelHandler()
         self.last_time[message.from_user.id]['date'] = message.date
         self.last_time[message.from_user.id]['text'] = message.text
@@ -84,14 +90,33 @@ async def cmd_start(message: types.Message):
 
 @dp.message_handler(Text(equals='Главное меню'))
 async def cmd_help(message: types.Message):
-    await bot.send_message(chat_id=message.from_user.id, text='Главное меню:', reply_markup=help_keyboard())
+    await bot.send_message(chat_id=message.from_user.id, text='Главное меню:', reply_markup=start_using_keyboard())
     await message.delete()
 
 
-@dp.message_handler(Text(equals='Описание'))
-async def cmd_description(message: types.Message):
-    await bot.send_message(chat_id=message.from_user.id, text=DESCRIPTION, reply_markup=start_using_keyboard())
-    await message.delete()
+@dp.message_handler(Text(equals='Книга жалоб и предложений'))
+async def review_msg_handler(message: types.Message):
+    await message.reply("Оставьте свой отзыв:")
+    await ReviewStatesGroup.text.set()
+
+
+@dp.message_handler(state=ReviewStatesGroup.text)
+async def review_msg_handler(message: types.Message):
+    review = message.text
+    if message.from_user.username:
+        sender = message.from_user.username
+    else:
+        sender = message.from_user.id
+    reply = f"Оставили отзыв в боте:\n{review}\nот @{sender}"
+    await bot.send_message(chat_id=CREATOR, text=reply)
+    await message.reply('Спасибо! Отзыв отправлен создателю бота, ему очень важно знать ваше мнение!',
+                        reply_markup=start_using_keyboard())
+
+
+# @dp.message_handler(Text(equals='Описание'))
+# async def cmd_description(message: types.Message):
+#     await bot.send_message(chat_id=message.from_user.id, text=DESCRIPTION, reply_markup=start_using_keyboard())
+#     await message.delete()
 
 
 @dp.message_handler(Text(equals='Начать использовать'))

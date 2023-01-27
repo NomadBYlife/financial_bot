@@ -37,9 +37,8 @@ months = {
 }
 
 
-
 def yes_no_keyboard() -> ReplyKeyboardMarkup:
-    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True   )
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     kb.add(KeyboardButton('Да'), KeyboardButton('Нет'))
     return kb
 
@@ -59,16 +58,17 @@ def start_using_keyboard() -> ReplyKeyboardMarkup:
 
 def income_expense_inline_keyboard() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(row_width=2)
-    ikb.add(InlineKeyboardButton(text='📈 Доход(не работает)', callback_data='income'),
-            InlineKeyboardButton(text='📉 Расход', callback_data='expense'),
-            InlineKeyboardButton(text='⬅️ Назад', callback_data='back_from_ikb'),)
+    ikb.add(
+        # InlineKeyboardButton(text='📈 Доход(не работает)', callback_data='income'),
+        InlineKeyboardButton(text='📉 Расход', callback_data='expense'),
+        InlineKeyboardButton(text='⬅️ Назад', callback_data='back_from_ikb'), )
     return ikb
 
 
 def menu_keyboard() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    kb.add(KeyboardButton('Ввести данные'), KeyboardButton('Получить данные'))
-    kb.add(KeyboardButton('Главное меню'))
+    kb.add(KeyboardButton('Ввести данные'), KeyboardButton('Посмотреть итоги'))
+    kb.add(KeyboardButton('Удалить'), KeyboardButton('Главное меню'))
     return kb
 
 
@@ -91,15 +91,16 @@ def income_expense_inline_keyboard2() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=button['grp_travel'], callback_data='grp_travel'),
             InlineKeyboardButton(text=button['grp_emergency'], callback_data='grp_emergency'),
             InlineKeyboardButton(text=button['grp_other'], callback_data='grp_other'),
-            InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
+            InlineKeyboardButton(text='😐 Отмена', callback_data='cancel'))
     return ikb
 
 
 def get_data_keyboard() -> ReplyKeyboardMarkup:
-    kb = ReplyKeyboardMarkup(resize_keyboard=True,one_time_keyboard=True)
-    kb.add(KeyboardButton('За все время'), KeyboardButton('За текущий месяц'),KeyboardButton('Выбрать период'))
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton('За все время'), KeyboardButton('За текущий месяц'), KeyboardButton('Выбрать период'))
     kb.add(KeyboardButton(text='⬅️ Назад'))
     return kb
+
 
 def months_inline_keyboard() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(row_width=3)
@@ -115,15 +116,14 @@ def months_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=months['mnth_10'], callback_data='mnth_10'),
             InlineKeyboardButton(text=months['mnth_11'], callback_data='mnth_11'),
             InlineKeyboardButton(text=months['mnth_12'], callback_data='mnth_12'),
-            InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
+            InlineKeyboardButton(text='😐 Отмена', callback_data='cancel'))
     return ikb
+
 
 def year_inline_keyboard() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(row_width=3)
-    ikb.add(InlineKeyboardButton(text='2022', callback_data='year_2022'),
-            InlineKeyboardButton(text='2023', callback_data='year_2023'),
+    ikb.add(InlineKeyboardButton(text='2023', callback_data='year_2023'),
             InlineKeyboardButton(text='2024', callback_data='year_2024'),
+            InlineKeyboardButton(text='2025', callback_data='year_2025'),
             InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
     return ikb
-
-

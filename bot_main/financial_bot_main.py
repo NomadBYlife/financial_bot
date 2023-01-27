@@ -9,7 +9,7 @@ from aiogram.dispatcher.handler import CancelHandler
 
 import config
 from db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month, \
-    get_data_choosen_month
+    get_data_choosen_month, get_note_for_del, del_note_from_db
 from keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
     income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard, \
     year_inline_keyboard
@@ -54,6 +54,15 @@ class ReviewStatesGroup(StatesGroup):
     text = State()
 
 
+class DeleteStatesGroup(StatesGroup):
+    group = State()
+    amount = State()
+    year = State()
+    month = State()
+    day = State()
+    yes_no = State()
+
+
 class AntiFloodMiddleware(BaseMiddleware):
     def __init__(self, limit):
         super().__init__()
@@ -88,6 +97,14 @@ async def cmd_start(message: types.Message):
     await message.delete()
 
 
+@dp.callback_query_handler(lambda callback_query: callback_query.data == 'cancel', state='*')
+async def cancel_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+    if state is None:
+        return
+    await callback.message.answer('Отменено', reply_markup=menu_keyboard())
+    await state.finish()
+
+
 @dp.message_handler(Text(equals='Главное меню'))
 async def cmd_help(message: types.Message):
     await bot.send_message(chat_id=message.from_user.id, text='Главное меню:', reply_markup=start_using_keyboard())
@@ -120,8 +137,9 @@ async def review_msg_handler(message: types.Message, state: FSMContext):
 #     await message.delete()
 
 
-@dp.message_handler(Text(equals='Начать использовать'))
-async def star_using_handler(message: types.Message):
+@dp.message_handler(Text(equals='Начать использовать'), state='*')
+async def star_using_handler(message: types.Message, state: FSMContext):
+    await state.finish()
     await bot.send_message(chat_id=message.from_user.id,
                            text='Меню:',
                            reply_markup=menu_keyboard())
@@ -131,17 +149,87 @@ async def star_using_handler(message: types.Message):
 @dp.message_handler(Text(equals='Ввести данные'))
 async def star_using_handler(message: types.Message):
     await bot.send_message(chat_id=message.from_user.id,
-                           text='Вы хотите внести расход или доход?',
+                           text='Что вы хотите ввести?',
                            reply_markup=income_expense_inline_keyboard())
     await message.delete()
 
 
-@dp.callback_query_handler(lambda callback_query: callback_query.data == 'cancel', state='*')
-async def cancel_cb_handler(callback: types.CallbackQuery, state: FSMContext):
-    if state is None:
-        return
-    await callback.message.answer('Отменено', reply_markup=menu_keyboard())
+@dp.message_handler(Text(equals='Удалить'))
+async def delete_cb_handler(message: types.Message, ):
+    await DeleteStatesGroup.group.set()
+    await bot.send_message(chat_id=message.from_user.id, text='Удалить в какой группе?',
+                           reply_markup=income_expense_inline_keyboard2())
+
+
+@dp.callback_query_handler(state=DeleteStatesGroup.group)
+async def delete_item_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        data['item'] = callback.data
+    await DeleteStatesGroup.next()
+    await callback.message.answer('введите сумму:')
+
+
+@dp.message_handler(ReplyFilterBot(), state=DeleteStatesGroup.amount)
+async def delete_amount_msg_handler(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['amount'] = message.text
+    await message.answer('Выберите год:', reply_markup=year_inline_keyboard())
+    await DeleteStatesGroup.next()
+
+
+@dp.callback_query_handler(state=DeleteStatesGroup.year)
+async def delete_year_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        data['year'] = callback.data[5:]
+    await callback.message.answer('Выберите месяц:', reply_markup=months_inline_keyboard())
+    await DeleteStatesGroup.next()
+
+
+@dp.callback_query_handler(state=DeleteStatesGroup.month)
+async def delete_month_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        if len(callback.data[5:]) == 1:
+            data['month'] = f"0{callback.data[5:]}"
+        else:
+            data['month'] = callback.data[5:]
+    await callback.message.answer('Введите день:')
+    await DeleteStatesGroup.next()
+
+
+@dp.message_handler(ReplyFilterBot(), state=DeleteStatesGroup.day)
+async def delete_day_msg_handler(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        if len(message.text) == 1:
+            data['day'] = f"0{message.text}"
+        else:
+            data['day'] = message.text
+        data['date'] = f"{data['year']}-{data['month']}-{data['day']}"
+    db_data = await get_note_for_del(user_id=message.from_user.id, data=data)
+    reply = ""
+    if len(db_data) == 0:
+        reply = 'Данных не найдено. Проверьте правильность введенных данных'
+        await message.answer(text=reply, reply_markup=income_expense_inline_keyboard())
+        await state.finish()
+    else:
+        for i in db_data:
+            reply += f"Вы хотите удалить:\n{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+    # reply += f"Вы хотите удалить: {db_data['amount_sum']}"
+    await message.answer(text=reply, reply_markup=yes_no_keyboard())
+    await DeleteStatesGroup.next()
+
+
+@dp.message_handler(Text(equals='Нет'), state=DeleteStatesGroup.yes_no)
+async def delete_no_msg_handler(message: types.Message, state: FSMContext):
     await state.finish()
+    await message.reply('Отменено', reply_markup=income_expense_inline_keyboard())
+
+
+@dp.message_handler(Text(equals='Да'), state=DeleteStatesGroup.yes_no)
+async def delete_yes_msg_handler(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        await del_note_from_db(user_id=message.from_user.id, data=data)
+    await state.finish()
+    await message.reply('Удалено', reply_markup=menu_keyboard())
 
 
 @dp.callback_query_handler(lambda callback_query: callback_query.data == 'back_from_ikb')
@@ -180,11 +268,12 @@ async def months_cb_handler(callback_query: types.CallbackQuery, state: FSMConte
     db_data = await get_data_choosen_month(callback_query.from_user.id, data)
     reply = ''
     await state.finish()
-    if len(db_data) == 0:
+    if len(db_data['main']) == 0:
         reply = 'Данных пока нету'
-    for i in db_data['main']:
-        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
-    reply += f"Общая сумма расходов: {db_data['amount_sum']}"
+    else:
+        for i in db_data['main']:
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+        reply += f"Общая сумма расходов: {db_data['amount_sum']}"
     await bot.send_message(chat_id=callback_query.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=menu_keyboard())
 
@@ -229,7 +318,7 @@ async def data_no_handler(message: types.Message, state: FSMContext):
     await state.finish()
 
 
-@dp.message_handler(Text(equals='Получить данные'))
+@dp.message_handler(Text(equals='Посмотреть итоги'))
 async def get_msg_handler(message: types.Message):
     await bot.send_message(chat_id=message.from_user.id, text='Выберите данные которые хотите получить:',
                            reply_markup=get_data_keyboard())
@@ -240,9 +329,12 @@ async def get_msg_handler(message: types.Message):
 async def get_general_month_data_msg_handler(message: types.Message):
     data = await get_general_data(message.from_user.id)
     reply = ''
-    for i in data['main']:
-        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
-    reply += f"Общая сумма расходов: {data['amount_sum']}"
+    if len(data['main']) == 0:
+        reply = 'Данных пока нету'
+    else:
+        for i in data['main']:
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+        reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
 
@@ -251,9 +343,12 @@ async def get_general_month_data_msg_handler(message: types.Message):
 async def get_current_month_data_msg_handler(message: types.Message):
     data = await get_data_current_month(message.from_user.id)
     reply = ''
-    for i in data['main']:
-        reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2]} {i[3]}\n"
-    reply += f"Общая сумма расходов: {data['amount_sum']}"
+    if len(data['main']) == 0:
+        reply = 'Данных пока нету'
+    else:
+        for i in data['main']:
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+        reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
 

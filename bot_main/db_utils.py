@@ -45,8 +45,6 @@ async def get_general_data(user_id: dict):
         cur.execute(
             "SELECT sum(amount) FROM expenses WHERE user == '{}' ORDER BY date_main".format(user_id)).fetchall()[0][
             0]
-    # print(data_q)
-
     return data
 
 
@@ -75,3 +73,14 @@ async def get_data_choosen_month(user_id: dict, date: dict):
         """SELECT sum(amount) FROM expenses WHERE user == '{}' and date_main BETWEEN date('{}') and date('{}')""".
             format(user_id, date_start, date_finish)).fetchall()[0][0]
     return data
+
+
+async def get_note_for_del(user_id: dict, data: dict):
+    res = cur.execute(
+        f"""SELECT * FROM expenses WHERE user == '{user_id}' and amount == '{data["amount"]}' and date_main == '{data["date"]}'""").fetchall()
+    return res
+
+async def del_note_from_db(user_id: dict, data: dict):
+    cur.execute(
+        f"""DELETE FROM expenses WHERE user == '{user_id}' and amount == '{data["amount"]}' and date_main == '{data["date"]}'""")
+    db.commit()

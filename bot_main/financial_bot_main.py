@@ -101,7 +101,7 @@ async def review_msg_handler(message: types.Message):
 
 
 @dp.message_handler(state=ReviewStatesGroup.text)
-async def review_msg_handler(message: types.Message):
+async def review_msg_handler(message: types.Message, state: FSMContext):
     review = message.text
     if message.from_user.username:
         sender = message.from_user.username
@@ -109,6 +109,7 @@ async def review_msg_handler(message: types.Message):
         sender = message.from_user.id
     reply = f"Оставили отзыв в боте:\n{review}\nот @{sender}"
     await bot.send_message(chat_id=CREATOR, text=reply)
+    await state.finish()
     await message.reply('Спасибо! Отзыв отправлен создателю бота, ему очень важно знать ваше мнение!',
                         reply_markup=start_using_keyboard())
 

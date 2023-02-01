@@ -42,6 +42,11 @@ def yes_no_keyboard() -> ReplyKeyboardMarkup:
     kb.add(KeyboardButton('Да'), KeyboardButton('Нет'))
     return kb
 
+def yes_no_inlinekeyboard() -> InlineKeyboardMarkup:
+    ikb = InlineKeyboardMarkup(row_width=2)
+    ikb.add(InlineKeyboardButton(text='Да',callback_data='yes'), InlineKeyboardButton(text='Нет',callback_data='no'))
+    return ikb
+
 
 def help_keyboard() -> ReplyKeyboardMarkup:
     kb = ReplyKeyboardMarkup(resize_keyboard=True)

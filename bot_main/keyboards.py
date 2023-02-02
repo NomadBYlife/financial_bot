@@ -96,7 +96,7 @@ def income_expense_inline_keyboard2() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=button['grp_travel'], callback_data='grp_travel'),
             InlineKeyboardButton(text=button['grp_emergency'], callback_data='grp_emergency'),
             InlineKeyboardButton(text=button['grp_other'], callback_data='grp_other'),
-            InlineKeyboardButton(text='😐 Отмена', callback_data='cancel'))
+            InlineKeyboardButton(text='❌ Отмена', callback_data='cancel'))
     return ikb
 
 
@@ -121,7 +121,7 @@ def months_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text=months['mnth_10'], callback_data='mnth_10'),
             InlineKeyboardButton(text=months['mnth_11'], callback_data='mnth_11'),
             InlineKeyboardButton(text=months['mnth_12'], callback_data='mnth_12'),
-            InlineKeyboardButton(text='😐 Отмена', callback_data='cancel'))
+            InlineKeyboardButton(text='❌ Отмена', callback_data='cancel'))
     return ikb
 
 
@@ -130,5 +130,5 @@ def year_inline_keyboard() -> InlineKeyboardMarkup:
     ikb.add(InlineKeyboardButton(text='2023', callback_data='year_2023'),
             InlineKeyboardButton(text='2024', callback_data='year_2024'),
             InlineKeyboardButton(text='2025', callback_data='year_2025'),
-            InlineKeyboardButton(text='😐 cancel', callback_data='cancel'))
+            InlineKeyboardButton(text='❌ Отмена', callback_data='cancel'))
     return ikb

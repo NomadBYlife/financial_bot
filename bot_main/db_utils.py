@@ -28,7 +28,7 @@ async def create_user(user_id, name, nick_name):
         db.commit()
 
 
-async def edit_expenses(state):
+async def write_expenses(state):
     async with state.proxy() as data:
         cur.execute(
             f"INSERT INTO expenses(item, amount, description, user, date_main) VALUES ('{data['item']}', '{data['amount']}',"
@@ -80,7 +80,8 @@ async def get_note_for_del(user_id: dict, data: dict):
         f"""SELECT * FROM expenses WHERE user == '{user_id}' and amount == '{data["amount"]}' and date_main == '{data["date"]}'""").fetchall()
     return res
 
+
 async def del_note_from_db(user_id: dict, data: dict):
     cur.execute(
-        f"""DELETE FROM expenses WHERE user == '{user_id}' and amount == '{data["amount"]}' and date_main == '{data["date"]}'""")
+        f"""DELETE FROM expenses WHERE item == '{data["item"]}' and amount == '{data["amount"]}' and date_main == '{data["date"]}' and user == '{user_id}'""")
     db.commit()

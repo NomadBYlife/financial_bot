@@ -6,13 +6,14 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.types import ReplyKeyboardRemove
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher.handler import CancelHandler
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 import config
-from db_utils import db_start, create_user, edit_expenses, get_general_data, get_data_current_month, \
+from db_utils import db_start, create_user, write_expenses, get_general_data, get_data_current_month, \
     get_data_choosen_month, get_note_for_del, del_note_from_db
 from keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
     income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard, \
-    year_inline_keyboard
+    year_inline_keyboard, yes_no_inlinekeyboard
 
 storage = MemoryStorage()
 bot = Bot(config.TOKEN_API)
@@ -56,11 +57,11 @@ class ReviewStatesGroup(StatesGroup):
 
 class DeleteStatesGroup(StatesGroup):
     group = State()
-    amount = State()
-    year = State()
-    month = State()
-    day = State()
-    yes_no = State()
+    data = State()
+    # year = State()
+    # month = State()
+    # day = State()
+    # yes_no = State()
 
 
 class AntiFloodMiddleware(BaseMiddleware):
@@ -102,6 +103,7 @@ async def cancel_cb_handler(callback: types.CallbackQuery, state: FSMContext):
     if state is None:
         return
     await callback.message.answer('Отменено', reply_markup=menu_keyboard())
+    await callback.answer()
     await state.finish()
 
 
@@ -155,92 +157,60 @@ async def star_using_handler(message: types.Message):
 
 
 @dp.message_handler(Text(equals='Удалить'))
-async def delete_cb_handler(message: types.Message, ):
+async def delete_msg_handler(message: types.Message):
     await DeleteStatesGroup.group.set()
-    await bot.send_message(chat_id=message.from_user.id, text='Удалить в какой группе?',
-                           reply_markup=income_expense_inline_keyboard2())
+    db_data = await get_data_current_month(message.from_user.id)
+    ikb = InlineKeyboardMarkup(row_width=1)
+    for i in db_data['main']:
+        ikb.add(
+            InlineKeyboardButton(text=f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n",
+                                 callback_data=f"{i[0]}, {i[1]}, {i[2]}")
+        )
+    ikb.add(InlineKeyboardButton(text='Отмена', callback_data='cancel'))
+    await message.reply(text='Выберите запись, которую хотите удалить', reply_markup=ikb)
 
 
 @dp.callback_query_handler(state=DeleteStatesGroup.group)
-async def delete_item_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+async def delete_confirm_cb_handler(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
-        data['item'] = callback.data
+        data['item'] = callback.data.split(', ')[0]
+        data['amount'] = int(callback.data.split(', ')[1])
+        data['date'] = callback.data.split(', ')[2]
     await DeleteStatesGroup.next()
-    await callback.message.answer('введите сумму:')
+    reply = (f"Вы хотите удалить запись:\n {button[callback.data.split(', ')[0]]}:"
+             f" сумма {callback.data.split(', ')[1]}, "
+             f"дата {callback.data.split(', ')[2][8:]}-{callback.data.split(', ')[2][5:7]}-{callback.data.split(', ')[2][0:4]}")
+    await callback.message.answer(text=reply, reply_markup=yes_no_inlinekeyboard())
+    await callback.answer()
 
 
-@dp.message_handler(ReplyFilterBot(), state=DeleteStatesGroup.amount)
-async def delete_amount_msg_handler(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['amount'] = message.text
-    await message.answer('Выберите год:', reply_markup=year_inline_keyboard())
-    await DeleteStatesGroup.next()
-
-
-@dp.callback_query_handler(state=DeleteStatesGroup.year)
-async def delete_year_cb_handler(callback: types.CallbackQuery, state: FSMContext):
-    async with state.proxy() as data:
-        data['year'] = callback.data[5:]
-    await callback.message.answer('Выберите месяц:', reply_markup=months_inline_keyboard())
-    await DeleteStatesGroup.next()
-
-
-@dp.callback_query_handler(state=DeleteStatesGroup.month)
-async def delete_month_cb_handler(callback: types.CallbackQuery, state: FSMContext):
-    async with state.proxy() as data:
-        if len(callback.data[5:]) == 1:
-            data['month'] = f"0{callback.data[5:]}"
-        else:
-            data['month'] = callback.data[5:]
-    await callback.message.answer('Введите день:')
-    await DeleteStatesGroup.next()
-
-
-@dp.message_handler(ReplyFilterBot(), state=DeleteStatesGroup.day)
-async def delete_day_msg_handler(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        if len(message.text) == 1:
-            data['day'] = f"0{message.text}"
-        else:
-            data['day'] = message.text
-        data['date'] = f"{data['year']}-{data['month']}-{data['day']}"
-    db_data = await get_note_for_del(user_id=message.from_user.id, data=data)
-    reply = ""
-    if len(db_data) == 0:
-        reply = 'Данных не найдено. Проверьте правильность введенных данных'
-        await message.answer(text=reply, reply_markup=income_expense_inline_keyboard())
+@dp.callback_query_handler(state=DeleteStatesGroup.data)
+async def delete_cb_handler(callback: types.CallbackQuery, state: FSMContext):
+    if callback.data == 'yes':
+        async with state.proxy() as data:
+            print(data)
+            await del_note_from_db(user_id=callback.from_user.id, data=data)
         await state.finish()
+        await callback.message.answer(text='удалено', reply_markup=menu_keyboard())
+        await callback.answer()
+
     else:
-        for i in db_data:
-            reply += f"Вы хотите удалить:\n{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
-    # reply += f"Вы хотите удалить: {db_data['amount_sum']}"
-    await message.answer(text=reply, reply_markup=yes_no_keyboard())
-    await DeleteStatesGroup.next()
-
-
-@dp.message_handler(Text(equals='Нет'), state=DeleteStatesGroup.yes_no)
-async def delete_no_msg_handler(message: types.Message, state: FSMContext):
-    await state.finish()
-    await message.reply('Отменено', reply_markup=income_expense_inline_keyboard())
-
-
-@dp.message_handler(Text(equals='Да'), state=DeleteStatesGroup.yes_no)
-async def delete_yes_msg_handler(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        await del_note_from_db(user_id=message.from_user.id, data=data)
-    await state.finish()
-    await message.reply('Удалено', reply_markup=menu_keyboard())
+        await state.finish()
+        await callback.message.answer(text='Отменено', reply_markup=menu_keyboard())
+        await callback.answer()
 
 
 @dp.callback_query_handler(lambda callback_query: callback_query.data == 'back_from_ikb')
 async def back_f_ikb_cb_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer('Меню:', reply_markup=menu_keyboard())
+    await callback.answer()
     await state.finish()
 
 
 @dp.callback_query_handler(lambda callback: callback.data == 'expense')
 async def income_cb_handler(callback: types.CallbackQuery):
     await callback.message.answer('Группы расходы', reply_markup=income_expense_inline_keyboard2())
+    await callback.answer()
     await callback.message.delete()
 
 
@@ -282,7 +252,7 @@ async def months_cb_handler(callback_query: types.CallbackQuery, state: FSMConte
 async def amount_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['amount'] = message.text
-    await message.reply('Хотите оставить комментарий?', reply_markup=yes_no_keyboard())
+    await message.reply('Хотите оставить комментарий?', reply_markup=yes_no_inlinekeyboard())
     await ProductsStatesGroup.next()
 
 
@@ -292,9 +262,10 @@ async def back_f_kb_handler(message: types.Message):
     await message.delete()
 
 
-@dp.message_handler(Text(equals='Да'), state=ProductsStatesGroup.yes_no)
-async def data_yes_handler(message: types.Message):
-    await message.reply('Коментарий:')
+@dp.callback_query_handler(Text(equals='yes'), state=ProductsStatesGroup.yes_no)
+async def data_yes_handler(callback: types.CallbackQuery):
+    await callback.message.answer('Коментарий:')
+    await callback.answer()
     await ProductsStatesGroup.next()
 
 
@@ -303,18 +274,19 @@ async def data_description_handler(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['user_id'] = message.from_user.id
         data['description'] = message.text
-    await edit_expenses(state)
+    await write_expenses(state)
     await message.reply('Расход записан', reply_markup=income_expense_inline_keyboard())
     await state.finish()
 
 
-@dp.message_handler(Text(equals='Нет'), state=ProductsStatesGroup.yes_no)
-async def data_no_handler(message: types.Message, state: FSMContext):
+@dp.callback_query_handler(Text(equals='no'), state=ProductsStatesGroup.yes_no)
+async def data_no_handler(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
-        data['user_id'] = message.from_user.id
+        data['user_id'] = callback.from_user.id
         data['description'] = ''
-    await edit_expenses(state)
-    await message.reply('Расход записан', reply_markup=income_expense_inline_keyboard())
+    await write_expenses(state)
+    await callback.message.answer('Расход записан', reply_markup=income_expense_inline_keyboard())
+    await callback.answer()
     await state.finish()
 
 

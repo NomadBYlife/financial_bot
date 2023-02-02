@@ -3,15 +3,15 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text, BoundFilter
 from aiogram.dispatcher.filters.state import StatesGroup, State
-from aiogram.types import ReplyKeyboardRemove
 from aiogram.dispatcher.middlewares import BaseMiddleware
 from aiogram.dispatcher.handler import CancelHandler
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
+from typing import Collection
+from aiogram.utils.callback_data import CallbackData
 import config
 from db_utils import db_start, create_user, write_expenses, get_general_data, get_data_current_month, \
-    get_data_choosen_month, get_note_for_del, del_note_from_db
-from keyboards import yes_no_keyboard, help_keyboard, start_using_keyboard, income_expense_inline_keyboard, \
+    get_data_choosen_month, del_note_from_db
+from keyboards import start_using_keyboard, income_expense_inline_keyboard, \
     income_expense_inline_keyboard2, menu_keyboard, get_data_keyboard, button, months_inline_keyboard, \
     year_inline_keyboard, yes_no_inlinekeyboard
 
@@ -30,6 +30,41 @@ DESCRIPTION = """
 """
 CREATOR = 448040700
 
+navigation = CallbackData("navigation", "action", "direction")
+
+
+class Pagination:
+    def __init__(self, buttons: Collection[InlineKeyboardButton], buttons_on_page: int = 3) -> None:
+        self.__buttons = buttons
+        self.__buttons_on_page = buttons_on_page
+        self.__current_page = 0
+
+    async def update_kb(self) -> InlineKeyboardMarkup:
+        markup = InlineKeyboardMarkup()
+        from_ = self.__current_page * self.__buttons_on_page
+        to_ = (self.__current_page + 1) * self.__buttons_on_page
+
+        prev_button = InlineKeyboardButton("⬅️",
+                                           callback_data=navigation.new(action="navigate", direction="previous"))
+        next_button = InlineKeyboardButton("➡️",
+                                           callback_data=navigation.new(action="navigate", direction="next"))
+        cancel_button = InlineKeyboardButton("❌ Отмена",
+                                             callback_data=navigation.new(action="navigate", direction="cancel"))
+        for but in self.__buttons[from_:to_]:
+            markup.row(but)
+
+        if from_ <= 0:
+            return markup.row(next_button, cancel_button)
+        elif to_ >= len(self.__buttons):
+            return markup.row(prev_button, cancel_button)
+        return markup.row(prev_button, next_button, cancel_button)
+
+    async def on_next(self) -> None:
+        self.__current_page += 1
+
+    async def on_prev(self) -> None:
+        self.__current_page -= 1
+
 
 class ReplyFilterBot(BoundFilter):
     async def check(self, msg: types.Message):
@@ -41,6 +76,7 @@ class ReplyFilterBot(BoundFilter):
 
 
 class ProductsStatesGroup(StatesGroup):
+    group = State()
     amount = State()
     yes_no = State()
     description = State()
@@ -58,10 +94,6 @@ class ReviewStatesGroup(StatesGroup):
 class DeleteStatesGroup(StatesGroup):
     group = State()
     data = State()
-    # year = State()
-    # month = State()
-    # day = State()
-    # yes_no = State()
 
 
 class AntiFloodMiddleware(BaseMiddleware):
@@ -133,12 +165,6 @@ async def review_msg_handler(message: types.Message, state: FSMContext):
                         reply_markup=start_using_keyboard())
 
 
-# @dp.message_handler(Text(equals='Описание'))
-# async def cmd_description(message: types.Message):
-#     await bot.send_message(chat_id=message.from_user.id, text=DESCRIPTION, reply_markup=start_using_keyboard())
-#     await message.delete()
-
-
 @dp.message_handler(Text(equals='Начать использовать'), state='*')
 async def star_using_handler(message: types.Message, state: FSMContext):
     await state.finish()
@@ -156,18 +182,47 @@ async def star_using_handler(message: types.Message):
     await message.delete()
 
 
+def buttons_for_del(data: dict) -> Collection[InlineKeyboardButton]:
+    return [InlineKeyboardButton(text=f"{button[i[0]]}: суммa {i[1]}, {i[2][8:]}.{i[2][5:7]}.{i[2][0:4]} {i[3]}",
+                                 callback_data=f"{i[0]}, {i[1]}, {i[2]}") for i in data['main']]
+
+
 @dp.message_handler(Text(equals='Удалить'))
-async def delete_msg_handler(message: types.Message):
+async def delete_msg_handler(message: types.Message, state: FSMContext):
     await DeleteStatesGroup.group.set()
     db_data = await get_data_current_month(message.from_user.id)
-    ikb = InlineKeyboardMarkup(row_width=1)
-    for i in db_data['main']:
-        ikb.add(
-            InlineKeyboardButton(text=f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n",
-                                 callback_data=f"{i[0]}, {i[1]}, {i[2]}")
-        )
-    ikb.add(InlineKeyboardButton(text='Отмена', callback_data='cancel'))
-    await message.reply(text='Выберите запись, которую хотите удалить', reply_markup=ikb)
+    pagination = Pagination(buttons_for_del(db_data), 10)
+    async with state.proxy() as data:
+        data['pag'] = pagination
+    await message.reply(text='Выберите запись, которую хотите удалить', reply_markup=await data['pag'].update_kb(),
+                        parse_mode='HTML')
+
+
+@dp.callback_query_handler(navigation.filter(action="navigate", direction="next"), state=DeleteStatesGroup.group)
+async def next_(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        await data['pag'].on_next()
+        await callback.message.edit_text("Выберите запись, которую хотите удалить",
+                                         reply_markup=await data['pag'].update_kb(), parse_mode='HTML')
+        await callback.answer()
+
+
+@dp.callback_query_handler(navigation.filter(action="navigate", direction="previous"), state=DeleteStatesGroup.group)
+async def prev_(callback: types.CallbackQuery, state: FSMContext) -> None:
+    async with state.proxy() as data:
+        await data['pag'].on_prev()
+        await callback.message.edit_text("Выберите запись, которую хотите удалить",
+                                         reply_markup=await data['pag'].update_kb(), parse_mode='HTML')
+        await callback.answer()
+
+
+@dp.callback_query_handler(navigation.filter(action="navigate", direction="cancel"), state=DeleteStatesGroup.group)
+async def prev_(callback: types.CallbackQuery, state: FSMContext) -> None:
+    async with state.proxy() as data:
+        data.pop('pag')
+    await callback.message.answer('Отменено', reply_markup=menu_keyboard())
+    await state.finish()
+    await callback.answer()
 
 
 @dp.callback_query_handler(state=DeleteStatesGroup.group)
@@ -179,7 +234,7 @@ async def delete_confirm_cb_handler(callback: types.CallbackQuery, state: FSMCon
     await DeleteStatesGroup.next()
     reply = (f"Вы хотите удалить запись:\n {button[callback.data.split(', ')[0]]}:"
              f" сумма {callback.data.split(', ')[1]}, "
-             f"дата {callback.data.split(', ')[2][8:]}-{callback.data.split(', ')[2][5:7]}-{callback.data.split(', ')[2][0:4]}")
+             f"дата {callback.data.split(', ')[2][8:]}.{callback.data.split(', ')[2][5:7]}.{callback.data.split(', ')[2][0:4]}")
     await callback.message.answer(text=reply, reply_markup=yes_no_inlinekeyboard())
     await callback.answer()
 
@@ -188,7 +243,6 @@ async def delete_confirm_cb_handler(callback: types.CallbackQuery, state: FSMCon
 async def delete_cb_handler(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == 'yes':
         async with state.proxy() as data:
-            print(data)
             await del_note_from_db(user_id=callback.from_user.id, data=data)
         await state.finish()
         await callback.message.answer(text='удалено', reply_markup=menu_keyboard())
@@ -209,17 +263,19 @@ async def back_f_ikb_cb_handler(callback: types.CallbackQuery, state: FSMContext
 
 @dp.callback_query_handler(lambda callback: callback.data == 'expense')
 async def income_cb_handler(callback: types.CallbackQuery):
+    await ProductsStatesGroup.group.set()
     await callback.message.answer('Группы расходы', reply_markup=income_expense_inline_keyboard2())
     await callback.answer()
     await callback.message.delete()
 
 
-@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('grp'))
+@dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('grp'),
+                           state=ProductsStatesGroup.group)
 async def item_cb_handler(callback_query: types.CallbackQuery, state: FSMContext):
+    await ProductsStatesGroup.next()
     async with state.proxy() as data:
         data['item'] = callback_query.data
     await callback_query.message.answer('Введите сумму:')
-    await ProductsStatesGroup.amount.set()
 
 
 @dp.callback_query_handler(lambda callback_query: callback_query.data.startswith('year'), state=DateStatesGroup.year)
@@ -242,7 +298,7 @@ async def months_cb_handler(callback_query: types.CallbackQuery, state: FSMConte
         reply = 'Данных пока нету'
     else:
         for i in db_data['main']:
-            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}.{i[2][5:7]}.{i[2][0:4]} {i[3]}\n"
         reply += f"Общая сумма расходов: {db_data['amount_sum']}"
     await bot.send_message(chat_id=callback_query.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=menu_keyboard())
@@ -305,7 +361,7 @@ async def get_general_month_data_msg_handler(message: types.Message):
         reply = 'Данных пока нету'
     else:
         for i in data['main']:
-            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}.{i[2][5:7]}.{i[2][0:4]} {i[3]}\n"
         reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
@@ -319,7 +375,7 @@ async def get_current_month_data_msg_handler(message: types.Message):
         reply = 'Данных пока нету'
     else:
         for i in data['main']:
-            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}-{i[2][5:7]}-{i[2][0:4]} {i[3]}\n"
+            reply += f"{button[i[0]]}: суммa {i[1]}, дата {i[2][8:]}.{i[2][5:7]}.{i[2][0:4]} {i[3]}\n"
         reply += f"Общая сумма расходов: {data['amount_sum']}"
     await bot.send_message(chat_id=message.from_user.id, text=reply, parse_mode='HTML',
                            reply_markup=get_data_keyboard())
